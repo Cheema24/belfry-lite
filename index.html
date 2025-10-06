@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Belfry 0.1 - Animated Flight Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+body { margin:0; padding:0; font-family: Arial,sans-serif; background:#111; color:white; }
+#app { display:none; }
+#controls { padding:10px; background:#222; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+input,button,label,select { margin-right:10px; }
+#map { height:70vh; width:100%; }
+#stats { padding:10px; background:#222; }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+
+<div id="app">
+<h1 style="text-align:center">Belfry 0.1 - Animated Flight Tracker</h1>
+
+<div id="controls">
+    <label><input type="checkbox" id="locationToggle"> Search by Location</label>
+
+    <label id="continentLabel" class="hidden">Continent:</label>
+    <input list="continentList" id="continentFilter" class="hidden" placeholder="Select Continent">
+    <datalist id="continentList"></datalist>
+
+    <label id="countryLabel" class="hidden">Country:</label>
+    <input list="countryList" id="countryFilter" class="hidden" placeholder="Select Country">
+    <datalist id="countryList"></datalist>
+
+    <label id="cityLabel" class="hidden">City:</label>
+    <input list="cityList" id="cityFilter" class="hidden" placeholder="Select City">
+    <datalist id="cityList"></datalist>
+
+    <label>Type:</label>
+    <select id="typeFilter">
+        <option value="all">All</option>
+        <option value="commercial">Commercial</option>
+        <option value="private">Private</option>
+        <option value="military">Military</option>
+    </select>
+
+    <button id="mapThemeBtn">Toggle Map Theme</button>
+    <button id="toggleDummyBtn">Toggle Dummy Flights</button>
+</div>
+
+<div id="map"></div>
+<div id="stats"><strong>Statistics:</strong> <span id="statText"></span></div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // ---------------- Password ----------------
+    let password = prompt("Enter password for Belfry 0.1:");
+    const app = document.getElementById("app");
+    if(password !== "belfryprime"){
+        alert("Incorrect password! Access denied.");
+        document.body.innerHTML="<h2 style='color:red;text-align:center;margin-top:50px'>Access Denied</h2>";
+        throw new Error("Access denied");
+    } else {
+        alert("Welcome to Belfry 0.1!");
+        app.style.display="block"; // show the app only after password
+    }
+
+    // ---------------- Map ----------------
+    let darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19});
+    let lightTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
+    let map = L.map('map').setView([20,0],2);
+    darkTiles.addTo(map);
+    let darkMode=true;
+    document.getElementById("mapThemeBtn").addEventListener("click",()=>{
+        if(darkMode){ map.removeLayer(darkTiles); lightTiles.addTo(map); darkMode=false; }
+        else{ map.removeLayer(lightTiles); darkTiles.addTo(map); darkMode=true; }
+    });
+
+    // ---------------- Flight Data ----------------
+    const flights=[
+        {id:"FL001",lat:40.7128,lon:-74.006,alt:30000,speed:450,type:"commercial",continent:"North America",country:"USA",city:"New York",origin:"JFK",destination:"LAX",real:false},
+        {id:"FL002",lat:34.0522,lon:-118.2437,alt:28000,speed:430,type:"private",continent:"North America",country:"USA",city:"Los Angeles",origin:"LAX",destination:"SFO",real:false},
+        {id:"FL003",lat:51.4700,lon:-0.4543,alt:33000,speed:480,type:"commercial",continent:"Europe",country:"UK",city:"London",origin:"LHR",destination:"JFK",real:false},
+        {id:"FL004",lat:55.7558,lon:37.6173,alt:32000,speed:460,type:"military",continent:"Europe",country:"Russia",city:"Moscow",origin:"SVO",destination:"LED",real:false},
+        {id:"FL005",lat:33.6844,lon:73.0479,alt:32000,speed:450,type:"commercial",continent:"Asia",country:"Pakistan",city:"Islamabad",origin:"ISB",destination:"LHE",real:false},
+        {id:"FL006",lat:24.8607,lon:67.0011,alt:30000,speed:470,type:"commercial",continent:"Asia",country:"Pakistan",city:"Karachi",origin:"KHI",destination:"ISB",real:false},
+        {id:"FL007",lat:35.6895,lon:139.6917,alt:34000,speed:500,type:"commercial",continent:"Asia",country:"Japan",city:"Tokyo",origin:"HND",destination:"ICN",real:false},
+        {id:"FL008",lat:-33.8688,lon:151.2093,alt:34000,speed:480,type:"commercial",continent:"Australia",country:"Australia",city:"Sydney",origin:"SYD",destination:"MEL",real:false},
+    ];
+
+    // ---------------- Helpers ----------------
+    let dummyEnabled=true;
+    function getColor(f){
+        if(!f.real) return "purple";
+        if(f.type==="commercial") return "blue";
+        if(f.type==="private") return "yellow";
+        if(f.type==="military") return "red";
+        return "white";
+    }
+    function createMarker(f){
+        return L.circleMarker([f.lat,f.lon],{radius:8,fillColor:getColor(f),color:getColor(f),fillOpacity:0.9})
+            .bindPopup(`<b>${f.id}</b><br>Type:${f.type}<br>From:${f.origin}<br>To:${f.destination}<br>Speed:${f.speed} mph<br>Alt:${f.alt} ft`)
+            .bindTooltip(`${f.id}: ${f.origin} → ${f.destination}`,{permanent:false,direction:"top"});
+    }
+
+    // ---------------- Controls ----------------
+    const locationToggle=document.getElementById("locationToggle");
+    const continentFilter=document.getElementById("continentFilter");
+    const countryFilter=document.getElementById("countryFilter");
+    const cityFilter=document.getElementById("cityFilter");
+    const continentList=document.getElementById("continentList");
+    const countryList=document.getElementById("countryList");
+    const cityList=document.getElementById("cityList");
+    const continentLabel=document.getElementById("continentLabel");
+    const countryLabel=document.getElementById("countryLabel");
+    const cityLabel=document.getElementById("cityLabel");
+    const typeFilter=document.getElementById("typeFilter");
+
+    let markers=[];
+    let flightPaths=[];
+
+    // ---------------- Populate Datalists ----------------
+    function populateContinents(){
+        let continents=Array.from(new Set(flights.map(f=>f.continent))).sort();
+        continentList.innerHTML="";
+        continents.forEach(c=>continentList.innerHTML+=`<option value="${c}">`);
+    }
+    function populateCountries(cont){
+        let countries=flights.filter(f=>cont==="all"||f.continent===cont).map(f=>f.country);
+        countries=Array.from(new Set(countries)).sort();
+        countryList.innerHTML="";
+        countries.forEach(c=>countryList.innerHTML+=`<option value="${c}">`);
+    }
+    function populateCities(country){
+        let cities=flights.filter(f=>country==="all"||f.country===country).map(f=>f.city);
+        cities=Array.from(new Set(cities)).sort();
+        cityList.innerHTML="";
+        cities.forEach(c=>cityList.innerHTML+=`<option value="${c}">`);
+    }
+
+    // ---------------- Flight Display ----------------
+    function animateFlight(f,marker,line){
+        let start=[f.lat,f.lon];
+        let end=[f.lat+0.1,f.lon+0.1];
+        let t=0;
+        function step(){
+            t+=0.005;
+            if(t>1) t=0;
+            let lat=start[0]+(end[0]-start[0])*t;
+            let lon=start[1]+(end[1]-start[1])*t;
+            marker.setLatLng([lat,lon]);
+            line.setLatLngs([[start[0],start[1]],[lat,lon]]);
+            requestAnimationFrame(step);
+        }
+        step();
+    }
+
+    function showFlights(){
+        markers.forEach(m=>map.removeLayer(m));
+        flightPaths.forEach(l=>map.removeLayer(l));
+        markers=[]; flightPaths=[];
+
+        const cont=continentFilter.value || "all";
+        const country=countryFilter.value || "all";
+        const city=cityFilter.value || "all";
+        const type=typeFilter.value;
+
+        const filtered=flights.filter(f=>{
+            if(!dummyEnabled && !f.real) return false;
+            if(locationToggle.checked){
+                if(cont!=="all" && f.continent!==cont) return false;
+                if(country!=="all" && f.country!==country) return false;
+                if(city!=="all" && f.city!==city) return false;
+            }
+            if(type!=="all" && f.type!==type) return false;
+            return true;
+        });
+
+        filtered.forEach(f=>{
+            const marker=createMarker(f).addTo(map);
+            markers.push(marker);
+            const lineColor=f.real?"blue":"purple";
+            const poly=L.polyline([[f.lat,f.lon],[f.lat+0.1,f.lon+0.1]],{color:lineColor}).addTo(map);
+            flightPaths.push(poly);
+            if(!f.real){ animateFlight(f,marker,poly); }
+        });
+        updateStats(filtered);
+    }
+
+    // ---------------- Event Listeners ----------------
+    document.getElementById("toggleDummyBtn").addEventListener("click",()=>{
+        dummyEnabled=!dummyEnabled;
+        showFlights();
+    });
+
+    locationToggle.addEventListener("change",()=>{
+        if(locationToggle.checked){
+            continentLabel.classList.remove("hidden");
+            continentFilter.classList.remove("hidden");
+            populateContinents();
+        } else {
+            continentLabel.classList.add("hidden"); continentFilter.classList.add("hidden");
+            countryLabel.classList.add("hidden"); countryFilter.classList.add("hidden");
+            cityLabel.classList.add("hidden"); cityFilter.classList.add("hidden");
+            continentFilter.value="all"; countryFilter.value="all"; cityFilter.value="all";
+        }
+        showFlights();
+    });
+
+    continentFilter.addEventListener("input",()=>{
+        const cont = continentFilter.value || "all";
+        if(cont!=="all"){
+            countryLabel.classList.remove("hidden"); countryFilter.classList.remove("hidden");
+            populateCountries(cont);
+        } else {
+            countryLabel.classList.add("hidden"); countryFilter.classList.add("hidden");
+            cityLabel.classList.add("hidden"); cityFilter.classList.add("hidden");
+        }
+        showFlights();
+    });
+
+    countryFilter.addEventListener("input",()=>{
+        const country = countryFilter.value || "all";
+        if(country!=="all"){
+            cityLabel.classList.remove("hidden"); cityFilter.classList.remove("hidden");
+            populateCities(country);
+        } else {
+            cityLabel.classList.add("hidden"); cityFilter.classList.add("hidden");
+        }
+        showFlights();
+    });
+
+    cityFilter.addEventListener("input", showFlights);
+    typeFilter.addEventListener("change", showFlights);
+
+    // ---------------- Stats ----------------
+    function updateStats(flightsList){
+        const types={}; flightsList.forEach(f=>types[f.type]=(types[f.type]||0)+1);
+        const conts={}; flightsList.forEach(f=>conts[f.continent]=(conts[f.continent]||0)+1);
+        let text="Flights by type: "; for(const t in types) text+=`${t}:${types[t]} `;
+        text+=" | Flights by continent: "; for(const c in conts) text+=`${c}:${conts[c]} `;
+        document.getElementById("statText").textContent=text;
+    }
+
+    // ---------------- Initial Display ----------------
+    showFlights();
+});
+</script>
+</body>
+</html>
