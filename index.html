@@ -1,518 +1,241 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>Belfry 0.2 - Belfry Prime (Front-end)</title>
+<meta charset="utf-8"/>
+<title>Belfry Lite v0.1 Prime — Planes + Refresh + Hover Info</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <style>
-  :root{
-    --bg-dark: #0b0b0f;
-    --panel-dark: #151518;
-    --accent: #2ea8e5;
-    --muted: #9aa0a6;
-    --white: #ffffff;
-    --purple: #b46eff;
-  }
-
-  html,body{height:100%;margin:0;}
-  body{
-    font-family: Inter, Arial, Helvetica, sans-serif;
-    background:var(--bg-dark);
-    color:var(--white);
-    -webkit-font-smoothing:antialiased;
-    -moz-osx-font-smoothing:grayscale;
-  }
-
-  #app{display:none; height:100%; width:100%; box-sizing:border-box;}
-
-/* top bar */
-  header{
-    display:flex;
-    gap:12px;
-    align-items:center;
-    padding:10px 14px;
-    background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
-    border-bottom:1px solid rgba(255,255,255,0.03);
-  }
-  header h1{font-size:18px; margin:0; font-weight:600;}
-  .status {
-    margin-left:auto;
-    display:flex;
-    gap:10px;
-    align-items:center;
-    color:var(--muted);
-    font-size:13px;
-  }
-  .pill{
-    padding:6px 10px;
-    border-radius:8px;
-    background:var(--panel-dark);
-    border:1px solid rgba(255,255,255,0.03);
-    display:inline-flex;
-    gap:8px;
-    align-items:center;
-  }
-
-/* layout */
-  .layout{display:grid; grid-template-columns: 360px 1fr; height:calc(100% - 56px);}
-  .left{
-    padding:12px; box-sizing:border-box;
-    background:linear-gradient(180deg, rgba(255,255,255,0.015), transparent);
-    border-right:1px solid rgba(255,255,255,0.03);
-    overflow:auto;
-  }
-  .mapWrap{position:relative;}
-  #map{height:100%; width:100%;}
-
-/* controls */
-  .control-row{display:flex; gap:8px; align-items:center; margin-bottom:10px;}
-  label.inline{display:inline-flex; gap:8px; align-items:center; font-size:14px;}
-  select, input[type="text"], input[list]{
-    padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);
-    background:#0e0e12; color:var(--white); outline:none; min-width:120px;
-  }
-  button{
-    padding:8px 10px; border-radius:6px; border:none; cursor:pointer; background:var(--accent); color:#001a24;
-    font-weight:600;
-  }
-  .muted{color:var(--muted);font-size:13px;}
-  .small{font-size:13px;padding:6px 8px}
-
-/* stats */
-  .stats{margin-top:8px; padding:10px; border-radius:8px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border:1px solid rgba(255,255,255,0.02);}
-  .stat-line{display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px; color:var(--muted);}
-
-/* plane icon (divIcon) */
-  .plane-icon{
-    width:28px; height:28px; display:inline-block; transform-origin:center center;
-    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.6));
-  }
-
-/* tooltip card styling (Leaflet popups/tooltip inherit) */
-  .leaflet-popup-content-wrapper{background:#111; color:var(--white)}
-  .leaflet-tooltip{background:#111; border:1px solid rgba(255,255,255,0.06); color:var(--white); padding:6px 8px; border-radius:6px;}
-
-/* search toggles */
-  .toggle {display:inline-flex; align-items:center; gap:8px;}
-  .muted-block{color:var(--muted); font-size:13px; margin-bottom:10px;}
-
-  /* responsive */
-  @media (max-width:900px){
-    .layout{grid-template-columns:1fr; grid-template-rows: auto 1fr;}
-    .left{order:2}
-    .mapWrap{order:1; height:60vh}
-  }
+:root{
+  --bg:#07070a; --panel:#0f1114; --muted:#9aa0a6; --white:#ffffff;
+  --blue:#3aa0f2; --yellow:#ffd15c; --red:#ff4d4d; --purple:#b46eff;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--white);font-family:Inter,Arial,Helvetica,sans-serif}
+#app{display:none;height:100%;width:100%}
+header{height:56px;display:flex;align-items:center;padding:8px 14px;gap:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+h1{margin:0;font-size:16px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.pill{padding:6px 10px;border-radius:8px;background:var(--panel);border:1px solid rgba(255,255,255,0.03);color:var(--muted)}
+#map{position:absolute;top:56px;left:0;right:0;bottom:0;}
+#sidePanel{position:absolute;top:72px;right:12px;width:360px;max-height:calc(100% - 96px);padding:12px;background:var(--panel);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.6);transform:translateX(380px);opacity:0;transition:transform .32s, opacity .28s;overflow:auto;z-index:1001;pointer-events:none;}
+#sidePanel.open{transform:translateX(0);opacity:1;pointer-events:auto}
+#dimOverlay{position:absolute;inset:56px 0 0 0;background:rgba(0,0,0,0.35);z-index:1000;opacity:0;pointer-events:none;transition:opacity .28s;}
+#dimOverlay.visible{opacity:1;pointer-events:auto}
+.control-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+input[type="text"], select{padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:#0d0f12;color:var(--white);outline:none;width:100%}
+button.primary{padding:8px 10px;border-radius:6px;border:none;cursor:pointer;background:var(--blue);color:#012028;font-weight:600}
+.muted{color:var(--muted);font-size:13px}
+.stats{margin-top:8px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
+.stat-line{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;color:var(--muted)}
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,0.5);padding:8px 10px;border-radius:8px;font-size:13px;color:var(--white);border:1px solid rgba(255,255,255,0.04);z-index:900}
+.legend-item{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.legend-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.gear{width:36px;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;background:var(--panel);cursor:pointer;}
+.gear:hover{box-shadow:0 6px 18px rgba(0,0,0,0.5)}
 </style>
 </head>
 <body>
-
-<!-- App skeleton hidden until auth -->
 <div id="app">
 <header>
-  <h1>Belfry 0.2 — Belfry Prime (Front-end)</h1>
-  <div class="status">
-    <div class="pill" id="refreshPill">🛰️ <span id="refreshText">Idle</span></div>
-    <div class="pill muted" id="lastPill">Last: <span id="lastText">—</span></div>
-  </div>
+<h1>Belfry Lite v0.1 Prime</h1>
+<div class="header-right">
+<div class="pill" id="refreshPill">🛰️ <span id="refreshText">Idle</span></div>
+<div class="pill muted">Last: <span id="lastText">—</span></div>
+<div class="gear" id="controlsToggle">⚙️</div>
+</div>
 </header>
-
-<div class="layout">
-  <div class="left">
-    <div class="control-row">
-      <label class="inline"><input type="checkbox" id="locationToggle"> Search by location</label>
-      <label class="inline muted">Refresh <select id="refreshInterval"><option>15</option><option>30</option><option>60</option></select>s</label>
-    </div>
-
-    <div class="control-row" id="locationControls" style="display:none;flex-direction:column;gap:8px">
-      <div>
-        <label class="muted">Continent</label><br>
-        <input list="continentList" id="continentInput" placeholder="Type or pick continent (All allowed)">
-        <datalist id="continentList"></datalist>
-      </div>
-      <div>
-        <label class="muted">Country</label><br>
-        <input list="countryList" id="countryInput" placeholder="Country (hidden until continent selected)" disabled>
-        <datalist id="countryList"></datalist>
-      </div>
-      <div>
-        <label class="muted">City</label><br>
-        <input list="cityList" id="cityInput" placeholder="City (hidden until country selected)" disabled>
-        <datalist id="cityList"></datalist>
-      </div>
-    </div>
-
-    <div style="height:8px"></div>
-
-    <div class="control-row">
-      <label class="inline">Type
-        <select id="typeFilter" class="small">
-          <option value="all">All</option>
-          <option value="commercial">Commercial</option>
-          <option value="private">Private</option>
-          <option value="military">Military</option>
-        </select>
-      </label>
-
-      <label class="inline">Show:
-        <select id="sourceFilter" class="small">
-          <option value="both">Both</option>
-          <option value="real">Real only</option>
-          <option value="dummy">Dummy only</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="control-row">
-      <button id="mapThemeBtn" class="small">Toggle Map Theme</button>
-      <button id="toggleDummyBtn" class="small">Toggle Dummy Flights</button>
-      <button id="centerBtn" class="small">Center Map</button>
-    </div>
-
-    <div style="height:10px"></div>
-
-    <div class="stats">
-      <div class="stat-line"><div>Flights visible</div><div id="statCount">0</div></div>
-      <div class="stat-line"><div>Commercial</div><div id="statCommercial">0</div></div>
-      <div class="stat-line"><div>Private</div><div id="statPrivate">0</div></div>
-      <div class="stat-line"><div>Military</div><div id="statMilitary">0</div></div>
-    </div>
-
-    <div style="height:12px"></div>
-    <div class="muted-block">Tip: Toggle <b>Search by location</b>, start typing a continent, pick one, then choose a country — city will appear after country selection. Use Refresh to simulate live "real" updates.</div>
-  </div>
-
-  <div class="mapWrap">
-    <div id="map"></div>
-  </div>
+<div id="map"></div>
+<div id="dimOverlay"></div>
+<div id="sidePanel">
+<div class="control-row">
+<label><input type="checkbox" id="locationToggle"> Search by location</label>
+</div>
+<div id="locationControls" style="display:none;flex-direction:column;gap:8px">
+<input list="continentList" id="continentInput" placeholder="Continent"><datalist id="continentList"></datalist>
+<input list="countryList" id="countryInput" placeholder="Country" disabled><datalist id="countryList"></datalist>
+<input list="cityList" id="cityInput" placeholder="City" disabled><datalist id="cityList"></datalist>
+</div>
+<div class="control-row" style="margin-top:6px;">
+<input type="text" id="flightSearchInput" placeholder="Search flight by destination or type">
+</div>
+<div class="control-row">
+<label>Flight Type
+<select id="typeDropdown">
+<option value="all">All</option>
+<option value="private">Private</option>
+<option value="commercial">Commercial</option>
+<option value="military">Military</option>
+<option value="test">Test</option>
+</select>
+</label>
+<button id="toggleTestBtn" class="primary">Toggle Test Flights</button>
+</div>
+<div class="control-row">
+<label>Time filter
+<select id="timeSelect">
+<option value="all">All</option>
+<option value="15">Last 15 min</option>
+<option value="30">Last 30 min</option>
+<option value="60">Last 60 min</option>
+</select>
+</label>
+<button id="mapThemeBtn" class="primary">Toggle Map Theme</button>
+<button id="centerBtn" class="primary">Center Map</button>
+</div>
+<div class="stats">
+<div class="stat-line"><div>Flights visible</div><div id="statCount">0</div></div>
+<div class="stat-line"><div>Commercial</div><div id="statCommercial">0</div></div>
+<div class="stat-line"><div>Private</div><div id="statPrivate">0</div></div>
+<div class="stat-line"><div>Military</div><div id="statMilitary">0</div></div>
+<div class="stat-line"><div>Test</div><div id="statTest">0</div></div>
+</div>
+</div>
+<div class="legend" id="legend">
+<div style="font-weight:600;margin-bottom:6px">Legend</div>
+<div class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span> Commercial</div>
+<div class="legend-item"><span class="legend-dot" style="background:var(--yellow)"></span> Private</div>
+<div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span> Military</div>
+<div class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span> Test</div>
 </div>
 </div>
 
-<!-- Leaflet -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-/* ---- Authentication: run after DOM loaded so #app exists ---- */
-document.addEventListener('DOMContentLoaded', ()=>{
+document.addEventListener('DOMContentLoaded',()=>{
 
-  // Password prompt first; nothing shown until correct
-  const PASSWORD = "belfryprime";
-  let attempts = 0;
-  function auth(){
-    const p = prompt("Enter password for Belfry 0.1:");
-    if(p === null){ document.body.innerHTML = "<h2 style='color:#faa; text-align:center; margin-top:50px'>Authentication cancelled</h2>"; throw new Error("auth cancelled"); }
-    if(p !== PASSWORD){
-      attempts++;
-      alert("Incorrect password.");
-      if(attempts >= 3){ document.body.innerHTML = "<h2 style='color:red; text-align:center; margin-top:50px'>Access Denied</h2>"; throw new Error("access denied"); }
-      return auth();
-    }
-    // success
-    document.getElementById('app').style.display = 'block';
-    // small welcome:
-    const lastP = document.getElementById('lastText');
-    lastP.textContent = new Date().toLocaleString();
-  }
-  auth();
+// --- PASSWORD ---
+const PASSWORD="belfryprime"; let attempts=0;
+function auth(){
+  const p=prompt("Enter password for Belfry Lite v0.1:");
+  if(p===null){document.body.innerHTML="<h2 style='color:#faa;text-align:center;margin-top:50px'>Authentication cancelled</h2>";throw new Error("auth cancelled");}
+  if(p!==PASSWORD){attempts++;alert("Incorrect password.");if(attempts>=3){document.body.innerHTML="<h2 style='color:red;text-align:center;margin-top:50px'>Access Denied</h2>";throw new Error("access denied");}return auth();}
+  document.getElementById('app').style.display='block';document.getElementById('lastText').textContent=new Date().toLocaleString();
+}
+auth();
 
-  /* ---------------- Map setup ---------------- */
-  const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {subdomains: 'abcd', maxZoom: 19});
-  const lightTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19});
-  const map = L.map('map', {preferCanvas:true}).setView([20,0], 2);
-  darkTiles.addTo(map);
-  let darkMode = true;
+// --- MAP ---
+const darkTiles=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19});
+const lightTiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
+const map=L.map('map',{preferCanvas:true}).setView([20,0],2); darkTiles.addTo(map); let darkMode=true;
+document.getElementById('mapThemeBtn').addEventListener('click',()=>{ if(darkMode){map.removeLayer(darkTiles); lightTiles.addTo(map); darkMode=false;}else{map.removeLayer(lightTiles); darkTiles.addTo(map); darkMode=true;}});
+document.getElementById('centerBtn').addEventListener('click',()=>{map.setView([20,0],2);});
 
-  document.getElementById('mapThemeBtn').addEventListener('click', ()=>{
-    if(darkMode){ map.removeLayer(darkTiles); lightTiles.addTo(map); darkMode = false; }
-    else { map.removeLayer(lightTiles); darkTiles.addTo(map); darkMode = true; }
-  });
+// --- PANEL ---
+const controlsToggle=document.getElementById('controlsToggle');
+const sidePanel=document.getElementById('sidePanel');
+const dimOverlay=document.getElementById('dimOverlay');
+function openPanel(){ sidePanel.classList.add('open'); dimOverlay.classList.add('visible'); setTimeout(()=>map.invalidateSize(),320);}
+function closePanel(){ sidePanel.classList.remove('open'); dimOverlay.classList.remove('visible'); setTimeout(()=>map.invalidateSize(),320);}
+controlsToggle.addEventListener('mouseenter',openPanel);
+sidePanel.addEventListener('mouseleave',closePanel);
+dimOverlay.addEventListener('click',closePanel);
 
-  /* ---------------- Plane icon generator (divIcon with inline SVG)  ---------------- */
-  function makePlaneHTML(color, rotateDeg=0){
-    // small airplane SVG, colorizable via fill
-    const svg = `
-      <svg class="plane-icon" viewBox="0 0 24 24" width="28" height="28" style="transform:rotate(${rotateDeg}deg);">
-        <path fill="${color}" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9L2 14v2l8-1v4l-2 .5V22l4-1 4 1v-2.5L13 19v-4l8 1z"/>
-      </svg>`;
-    return `<div style="width:28px;height:28px;">${svg}</div>`;
-  }
-
-  function createDivIcon(color, rotation=0){
-    return L.divIcon({className:'plane-divicon', html: makePlaneHTML(color, rotation), iconSize:[28,28], iconAnchor:[14,14]});
-  }
-
-  /* ---------------- Sample Data: mixture of simulated "real" and dummy flights ----------------
-     - For now, we simulate "real" flights that update their endpoint periodically (to look live)
-     - Dummy flights are purple and animated along simple short paths
-  ---------------------------------------------------------------------------*/
-  const flights = [
-    // simulated real flights (real:true). These will be "refreshed" periodically.
-    {id:"R100", lat:51.47, lon:-0.45, destLat:40.6413, destLon:-73.7781, alt:34000, speed:480, type:"commercial", continent:"Europe", country:"UK", city:"London", origin:"LHR", destination:"JFK", real:true},
-    {id:"R101", lat:40.6413, lon:-73.7781, destLat:33.9416, destLon:-118.4085, alt:36000, speed:500, type:"commercial", continent:"North America", country:"USA", city:"New York", origin:"JFK", destination:"LAX", real:true},
-    {id:"R102", lat:24.8607, lon:67.0011, destLat:33.6844, destLon:73.0479, alt:33000, speed:460, type:"commercial", continent:"Asia", country:"Pakistan", city:"Karachi", origin:"KHI", destination:"ISB", real:true},
-
-    // dummy flights (real:false)
-    {id:"D200", lat:48.8566, lon:2.3522, destLat:41.9028, destLon:12.4964, alt:32000, speed:450, type:"commercial", continent:"Europe", country:"France", city:"Paris", origin:"CDG", destination:"FCO", real:false},
-    {id:"D201", lat:35.6895, lon:139.6917, destLat:37.5665, destLon:126.9780, alt:33000, speed:470, type:"commercial", continent:"Asia", country:"Japan", city:"Tokyo", origin:"HND", destination:"ICN", real:false},
-    {id:"D202", lat:-33.8688, lon:151.2093, destLat:-37.8136, destLon:144.9631, alt:34000, speed:480, type:"commercial", continent:"Australia", country:"Australia", city:"Sydney", origin:"SYD", destination:"MEL", real:false},
-    {id:"D203", lat:34.0522, lon:-118.2437, destLat:37.7749, destLon:-122.4194, alt:31000, speed:420, type:"private", continent:"North America", country:"USA", city:"Los Angeles", origin:"LAX", destination:"SFO", real:false},
-    {id:"D204", lat:55.7558, lon:37.6173, destLat:59.9343, destLon:30.3351, alt:30000, speed:430, type:"military", continent:"Europe", country:"Russia", city:"Moscow", origin:"SVO", destination:"LED", real:false},
+// --- DUMMY FLIGHTS ---
+let flights=[]; let testFlightsVisible=true;
+function generateDummyFlights(){
+  const now=Date.now();
+  return [
+    {id:1,type:'commercial',lat:51.5,lng:-0.1,dest:'London',origin:'New York',alt:35000,speed:480,timestamp:now-600000},
+    {id:2,type:'private',lat:40.7,lng:-74,dest:'New York',origin:'Boston',alt:12000,speed:350,timestamp:now-1200000},
+    {id:3,type:'military',lat:33.7,lng:73.1,dest:'Islamabad',origin:'Karachi',alt:40000,speed:520,timestamp:now-900000},
+    {id:4,type:'test',lat:48.8,lng:2.3,dest:'Paris',origin:'London',alt:30000,speed:450,timestamp:now-300000},
+    {id:5,type:'commercial',lat:-33.9,lng:151.2,dest:'Sydney',origin:'Melbourne',alt:36000,speed:470,timestamp:now-1800000},
+    {id:6,type:'private',lat:35.7,lng:139.7,dest:'Tokyo',origin:'Osaka',alt:15000,speed:340,timestamp:now-600000},
+    {id:7,type:'military',lat:55.7,lng:37.6,dest:'Moscow',origin:'St. Petersburg',alt:38000,speed:500,timestamp:now-1500000},
+    {id:8,type:'test',lat:19.4,lng:-99.1,dest:'Mexico City',origin:'Cancun',alt:32000,speed:430,timestamp:now-400000},
+    {id:9,type:'commercial',lat:52.5,lng:13.4,dest:'Berlin',origin:'Paris',alt:37000,speed:460,timestamp:now-500000},
+    {id:10,type:'private',lat:1.3,lng:103.8,dest:'Singapore',origin:'Jakarta',alt:14000,speed:330,timestamp:now-800000}
   ];
+}
+flights=generateDummyFlights();
+let flightMarkers=[], flightLines=[], flightPlanes=[];
 
-  /* ---------------- State ---------------- */
-  let markers = new Map();     // id -> marker object
-  let polylines = new Map();   // id -> polyline
-  let animHandles = new Map(); // id -> animation frame handle details
+// --- PLANE ICONS ---
+const planeIcons = {
+  commercial:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize:[20,20],iconAnchor:[10,10]}),
+  private:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684909.png',iconSize:[20,20],iconAnchor:[10,10]}),
+  military:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684910.png',iconSize:[20,20],iconAnchor:[10,10]}),
+  test:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684911.png',iconSize:[20,20],iconAnchor:[10,10]})
+};
 
-  /* --------------- Utility: interpolate --------------- */
-  function lerp(a,b,t){ return a + (b-a)*t; }
-  function interpCoord(start, end, t){ return [lerp(start[0], end[0], t), lerp(start[1], end[1], t)]; }
-
-  /* ---------------- create & add markers/polylines --------------- */
-  function addOrUpdateFlight(f){
-    // decide whether it should show given current filters
-    const sourceFilter = document.getElementById('sourceFilter').value;
-    if(sourceFilter === 'real' && !f.real) return;
-    if(sourceFilter === 'dummy' && f.real) return;
-
-    const typeFilter = document.getElementById('typeFilter').value;
-    if(typeFilter !== 'all' && f.type !== typeFilter) return;
-
-    // location filter check: if toggle on, check inputs
-    const locToggle = document.getElementById('locationToggle').checked;
-    if(locToggle){
-      const contVal = (document.getElementById('continentInput').value || '').trim();
-      const countryVal = (document.getElementById('countryInput').value || '').trim();
-      const cityVal = (document.getElementById('cityInput').value || '').trim();
-      if(contVal && contVal.toLowerCase() !== 'all' && contVal !== '' && f.continent !== contVal) return;
-      if(countryVal && countryVal.toLowerCase() !== 'all' && countryVal !== '' && f.country !== countryVal) return;
-      if(cityVal && cityVal.toLowerCase() !== 'all' && cityVal !== '' && f.city !== cityVal) return;
-    }
-
-    // create or update marker
-    const id = f.id;
-    const start = [f.lat, f.lon];
-    const dest = [f.destLat, f.destLon];
-
-    // polyline
-    let poly = polylines.get(id);
-    if(!poly){
-      poly = L.polyline([start, start], {color: f.real ? 'deepskyblue' : 'purple', weight:2, opacity:0.9}).addTo(map);
-      polylines.set(id, poly);
-    }
-
-    // marker (divIcon showing rotated plane)
-    let m = markers.get(id);
-    if(!m){
-      const color = f.real ? (f.type==='commercial' ? '#3aa0f2' : (f.type==='private' ? '#ffd15c' : '#ff4d4d')) : '#b46eff';
-      const icon = createDivIcon(color, 0);
-      m = L.marker(start, {icon: icon, rotationAngle: 0}).addTo(map);
-      m.bindPopup(`<strong>${f.id}</strong><br>${f.type} — ${f.origin} → ${f.destination}<br>Alt: ${f.alt} ft<br>Speed: ${f.speed} mph`);
-      markers.set(id, m);
-    } else {
-      // if exists, ensure it's on map
-      if(!map.hasLayer(m)) m.addTo(map);
-    }
-
-    // start animation if dummy OR if flagged to animate (real simulated update)
-    startFlightAnimation(f, m, poly);
-  }
-
-  /* ---------------- animated movement along straight line ---------------- */
-  function startFlightAnimation(f, marker, poly){
-    const id = f.id;
-    // clear previous handle if any
-    const prev = animHandles.get(id);
-    if(prev && prev.cancel) prev.cancel(); // stop previous loop
-
-    // we animate with a small loop that interpolates from start to dest and resets (looping)
-    let t = Math.random(); // start at random point to avoid sync
-    const speedFactor = Math.max(0.0008, 0.0006 * (f.speed/300)); // controls speed; tune as needed
-
-    let cancelled = false;
-    function cancel(){ cancelled = true; }
-
-    function step(){
-      if(cancelled) return;
-      t += speedFactor;
-      if(t > 1) t = 0;
-      const pos = interpCoord([f.lat, f.lon], [f.destLat, f.destLon], t);
-      marker.setLatLng(pos);
-      poly.setLatLngs([[f.lat, f.lon], pos]);
-      // rotate icon to heading
-      const dx = (f.destLon - f.lon);
-      const dy = (f.destLat - f.lat);
-      // compute approximate heading angle
-      const angle = Math.atan2(dx, dy) * 180 / Math.PI * -1; // approximate rotation
-      const el = marker.getElement();
-      if(el){
-        const svg = el.querySelector('svg.plane-icon');
-        if(svg) svg.style.transform = `rotate(${angle}deg)`;
-      }
-      requestAnimationFrame(step);
-    }
-
-    requestAnimationFrame(step);
-    animHandles.set(id, {cancel, id});
-  }
-
-  /* ---------------- place all flights initially ---------------- */
-  function refreshAllFlights(){
-    // clear everything then add according to filters
-    // we do not clear animHandles because startFlightAnimation cancels existing before starting new
-    markers.forEach((m, id)=>{ if(map.hasLayer(m)) map.removeLayer(m); });
-    polylines.forEach((p,id)=>{ if(map.hasLayer(p)) map.removeLayer(p); });
-    // keep maps but create updated entries
-    flights.forEach(f => addOrUpdateFlight(f));
-    updateStatsUI();
-  }
-
-  /* -------------- Stats and UI -------------- */
-  function updateStatsUI(){
-    // count visible markers (those on map)
-    let visibleCount = 0, commercial=0, priv=0, mil=0;
-    markers.forEach((m,id)=>{
-      if(map.hasLayer(m)) visibleCount++;
-    });
-    // compute by using filtered flights
-    const cont = (document.getElementById('continentInput').value || '').trim();
-    const country = (document.getElementById('countryInput').value || '').trim();
-    const city = (document.getElementById('cityInput').value || '').trim();
-    const typeVal = document.getElementById('typeFilter').value;
-    flights.forEach(f=>{
-      // apply same visibility logic as addOrUpdateFlight
-      const sourceFilter = document.getElementById('sourceFilter').value;
-      if(sourceFilter === 'real' && !f.real) return;
-      if(sourceFilter === 'dummy' && f.real) return;
-      if(typeVal !== 'all' && f.type !== typeVal) return;
-      if(document.getElementById('locationToggle').checked){
-        if(cont && cont.toLowerCase() !== 'all' && cont !== '' && f.continent !== cont) return;
-        if(country && country.toLowerCase() !== 'all' && country !== '' && f.country !== country) return;
-        if(city && city.toLowerCase() !== 'all' && city !== '' && f.city !== city) return;
-      }
-      if(f.type === 'commercial') commercial++;
-      if(f.type === 'private') priv++;
-      if(f.type === 'military') mil++;
-    });
-
-    document.getElementById('statCount').textContent = Array.from(markers.values()).filter(m=>map.hasLayer(m)).length;
-    document.getElementById('statCommercial').textContent = commercial;
-    document.getElementById('statPrivate').textContent = priv;
-    document.getElementById('statMilitary').textContent = mil;
-  }
-
-  /* ---------------- Type-ahead datalist population (hierarchical) ---------------- */
-  const continentInput = document.getElementById('continentInput');
-  const countryInput = document.getElementById('countryInput');
-  const cityInput = document.getElementById('cityInput');
-  const continentList = document.getElementById('continentList');
-  const countryList = document.getElementById('countryList');
-  const cityList = document.getElementById('cityList');
-
-  function populateContinentList(){
-    const arr = Array.from(new Set(flights.map(f=>f.continent))).sort();
-    continentList.innerHTML = '';
-    arr.forEach(v => { continentList.insertAdjacentHTML('beforeend', `<option value="${v}">`); });
-  }
-  function populateCountryList(cont){
-    let arr = flights.filter(f => cont === '' || cont.toLowerCase()==='all' ? true : f.continent === cont).map(f=>f.country);
-    arr = Array.from(new Set(arr)).sort();
-    countryList.innerHTML = '';
-    arr.forEach(v => { countryList.insertAdjacentHTML('beforeend', `<option value="${v}">`); });
-  }
-  function populateCityList(country){
-    let arr = flights.filter(f => country === '' || country.toLowerCase()==='all' ? true : f.country === country).map(f=>f.city);
-    arr = Array.from(new Set(arr)).sort();
-    cityList.innerHTML = '';
-    arr.forEach(v => { cityList.insertAdjacentHTML('beforeend', `<option value="${v}">`); });
-  }
-
-  // toggle search by location
-  document.getElementById('locationToggle').addEventListener('change', (e)=>{
-    const on = e.target.checked;
-    const container = document.getElementById('locationControls');
-    if(on){
-      container.style.display = 'flex';
-      populateContinentList();
-    } else {
-      container.style.display = 'none';
-      continentInput.value = ''; countryInput.value = ''; cityInput.value = '';
-    }
-    refreshAllFlights();
+// --- FLIGHTS RENDER + ANIMATION ---
+function addFlightAnimations(flightsToRender){
+  flightLines.forEach(l=>map.removeLayer(l)); flightPlanes.forEach(p=>map.removeLayer(p));
+  flightLines=[]; flightPlanes=[];
+  flightsToRender.forEach(f=>{
+    if(f.type==='test' && !testFlightsVisible) return;
+    let color=f.type==='commercial'? '--blue': f.type==='private'? '--yellow': f.type==='military'? '--red':'--purple';
+    let col=getComputedStyle(document.documentElement).getPropertyValue(color);
+    let latlngs=[[f.lat,f.lng],[f.lat+Math.random()*2-1,f.lng+Math.random()*2-1]];
+    let poly=L.polyline(latlngs,{color:col,weight:2,opacity:0.6}).addTo(map); flightLines.push(poly);
+    let plane=L.marker(latlngs[0],{icon:planeIcons[f.type]}).addTo(map); flightPlanes.push(plane);
+    let t=0; function animate(){ t+=0.005; if(t>1) t=0; let lat=latlngs[0][0]+(latlngs[1][0]-latlngs[0][0])*t; let lng=latlngs[0][1]+(latlngs[1][1]-latlngs[0][1])*t; plane.setLatLng([lat,lng]); requestAnimationFrame(animate);}
+    animate();
   });
+}
 
-  continentInput.addEventListener('input', ()=>{
-    const v = continentInput.value || '';
-    if(v === '' || v.toLowerCase()==='all'){ countryInput.value=''; countryInput.disabled = true; cityInput.value=''; cityInput.disabled = true; }
-    else { countryInput.disabled = false; populateCountryList(v); }
-    refreshAllFlights();
+function renderFlights(){
+  flightMarkers.forEach(m=>map.removeLayer(m)); flightMarkers=[];
+  const filterType=document.getElementById('typeDropdown').value;
+  const searchQuery=document.getElementById('flightSearchInput').value.toLowerCase();
+  const timeFilter=document.getElementById('timeSelect').value;
+  const now=Date.now();
+  let flightsToRender=[];
+  let count={commercial:0,private:0,military:0,test:0};
+
+  flights.forEach(f=>{
+    if(f.type==='test' && !testFlightsVisible) return;
+    if(filterType!=='all' && f.type!==filterType) return;
+    if(searchQuery && !(f.dest.toLowerCase().includes(searchQuery) || f.type.toLowerCase().includes(searchQuery))) return;
+    if(timeFilter!=='all' && (now-f.timestamp)/60000>parseInt(timeFilter)) return;
+
+    let m=L.marker([f.lat,f.lng],{icon:planeIcons[f.type]}).addTo(map);
+    m.bindPopup(`<b>${f.type.toUpperCase()} flight</b><br>From: ${f.origin}<br>To: ${f.dest}<br>Altitude: ${f.alt} ft<br>Speed: ${f.speed} kt`);
+    flightMarkers.push(m); flightsToRender.push(f);
+    count[f.type]++;
   });
+  addFlightAnimations(flightsToRender);
 
-  countryInput.addEventListener('input', ()=>{
-    const v = countryInput.value || '';
-    if(v === '' || v.toLowerCase()==='all'){ cityInput.value=''; cityInput.disabled = true; }
-    else { cityInput.disabled = false; populateCityList(v); }
-    refreshAllFlights();
-  });
+  document.getElementById('statCount').textContent=flightMarkers.length;
+  document.getElementById('statCommercial').textContent=count['commercial']||0;
+  document.getElementById('statPrivate').textContent=count['private']||0;
+  document.getElementById('statMilitary').textContent=count['military']||0;
+  document.getElementById('statTest').textContent=count['test']||0;
+  document.getElementById('refreshText').textContent='Refreshed';
+  document.getElementById('lastText').textContent=new Date().toLocaleString();
+}
 
-  cityInput.addEventListener('input', ()=> refreshAllFlights());
-  document.getElementById('typeFilter').addEventListener('change', ()=> refreshAllFlights());
-  document.getElementById('sourceFilter').addEventListener('change', ()=> refreshAllFlights());
+// --- CONTROLS ---
+document.getElementById('toggleTestBtn').addEventListener('click',()=>{ testFlightsVisible=!testFlightsVisible; renderFlights(); });
+document.getElementById('typeDropdown').addEventListener('change',renderFlights);
+document.getElementById('flightSearchInput').addEventListener('input',renderFlights);
+document.getElementById('timeSelect').addEventListener('change',renderFlights);
 
-  // center map button
-  document.getElementById('centerBtn').addEventListener('click', ()=> map.setView([20,0],2));
+// --- LOCATION CONTROLS ---
+const locationToggle=document.getElementById('locationToggle');
+const locationControls=document.getElementById('locationControls');
+locationToggle.addEventListener('change',()=>{ locationControls.style.display=locationToggle.checked?'flex':'none'; });
+const continents=['Africa','Europe','Asia','North America','South America','Oceania'];
+const countries={'Europe':['UK','France','Germany'],'Asia':['Pakistan','Japan','China'],'North America':['USA','Canada','Mexico'],'Oceania':['Australia','New Zealand'],'Africa':['Egypt','Nigeria','South Africa'],'South America':['Brazil','Argentina','Chile']};
+const cities={'UK':['London','Manchester'],'France':['Paris','Lyon'],'Germany':['Berlin','Munich'],'Pakistan':['Islamabad','Karachi'],'Japan':['Tokyo','Osaka'],'China':['Beijing','Shanghai'],'USA':['New York','Los Angeles'],'Canada':['Toronto','Vancouver'],'Mexico':['Mexico City','Cancun'],'Australia':['Sydney','Melbourne'],'New Zealand':['Auckland','Wellington'],'Egypt':['Cairo'],'Nigeria':['Lagos'],'South Africa':['Cape Town'],'Brazil':['Sao Paulo'],'Argentina':['Buenos Aires'],'Chile':['Santiago']};
 
-  /* ---------------- Simulated "real" update loop ----------------
-     - refreshInterval controls how often we change destinations for 'real' flights
-  */
-  let refreshIntervalSeconds = parseInt(document.getElementById('refreshInterval').value,10) || 15;
-  document.getElementById('refreshInterval').addEventListener('change', (e)=>{
-    refreshIntervalSeconds = parseInt(e.target.value,10) || 15;
-    startAutoRefresh();
-  });
+const continentInput=document.getElementById('continentInput');
+const countryInput=document.getElementById('countryInput');
+const cityInput=document.getElementById('cityInput');
+continentInput.addEventListener('input',()=>{
+  countryInput.disabled=false; countryInput.value=''; cityInput.value=''; cityInput.disabled=true;
+  let list=countries[continentInput.value]||[];
+  const dl=document.getElementById('countryList'); dl.innerHTML=''; list.forEach(c=>{let o=document.createElement('option'); o.value=c; dl.appendChild(o);});
+});
+countryInput.addEventListener('input',()=>{
+  cityInput.disabled=false; cityInput.value='';
+  let list=cities[countryInput.value]||[];
+  const dl=document.getElementById('cityList'); dl.innerHTML=''; list.forEach(c=>{let o=document.createElement('option'); o.value=c; dl.appendChild(o);});
+});
 
-  let refreshHandle = null;
-  const refreshPill = document.getElementById('refreshText');
-  const lastText = document.getElementById('lastText');
+// --- INITIAL RENDER ---
+renderFlights();
 
-  function simulateRealFlightUpdates(){
-    // pick "real" flights and jitter their destLat/destLon slightly to simulate movement from source
-    flights.forEach(f=>{
-      if(f.real){
-        // small random drift for destination
-        const jitter = ()=> (Math.random()-0.5) * 2.0; // ~ +/-1 degree
-        f.destLat = f.destLat + jitter()*0.6;
-        f.destLon = f.destLon + jitter()*0.6;
-        // optionally vary speed slightly
-        f.speed = Math.max(250, f.speed + (Math.random()-0.5)*20);
-      }
-    });
-    // update UI status
-    const now = new Date();
-    lastText.textContent = now.toLocaleTimeString();
-    refreshPill.textContent = `Updating every ${refreshIntervalSeconds}s`;
-    // re-draw flights (markers animate continue but we recreate if needed)
-    refreshAllFlights();
-  }
-
-  function startAutoRefresh(){
-    if(refreshHandle) clearInterval(refreshHandle);
-    refreshHandle = setInterval(() => {
-      simulateRealFlightUpdates();
-    }, refreshIntervalSeconds * 1000);
-    // run immediately once
-    simulateRealFlightUpdates();
-  }
-
-  // start initial load
-  refreshAllFlights();
-  startAutoRefresh();
-
-  /* cleanup on unload */
-  window.addEventListener('beforeunload', ()=>{
-    if(refreshHandle) clearInterval(refreshHandle);
-    animHandles.forEach(h => { if(h && h.cancel) h.cancel(); });
-  });
-
-}); // end DOMContentLoaded
+});
 </script>
 </body>
 </html>
