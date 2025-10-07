@@ -2,240 +2,619 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>Belfry Lite v0.1 Prime — Planes + Refresh + Hover Info</title>
+<title>Belfry Lite v3.5 — Multi-source, Search, Clustering, Follow</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
 <style>
 :root{
   --bg:#07070a; --panel:#0f1114; --muted:#9aa0a6; --white:#ffffff;
-  --blue:#3aa0f2; --yellow:#ffd15c; --red:#ff4d4d; --purple:#b46eff;
+  --blue:#007bff; --yellow:#ffd500; --red:#ff3b3b; --purple:#9b59b6;
+  --glass-alpha:0.12; --active-glow: rgba(0,123,255,0.18);
 }
+*{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--white);font-family:Inter,Arial,Helvetica,sans-serif}
 #app{display:none;height:100%;width:100%}
-header{height:56px;display:flex;align-items:center;padding:8px 14px;gap:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
-h1{margin:0;font-size:16px}
-.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
-.pill{padding:6px 10px;border-radius:8px;background:var(--panel);border:1px solid rgba(255,255,255,0.03);color:var(--muted)}
-#map{position:absolute;top:56px;left:0;right:0;bottom:0;}
-#sidePanel{position:absolute;top:72px;right:12px;width:360px;max-height:calc(100% - 96px);padding:12px;background:var(--panel);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.6);transform:translateX(380px);opacity:0;transition:transform .32s, opacity .28s;overflow:auto;z-index:1001;pointer-events:none;}
+header{height:64px;display:flex;align-items:center;padding:10px 14px;gap:14px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+h1{margin:0;font-size:16px;font-weight:600}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* Glass button style */
+button.glassBtn{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.04);
+  color: var(--white);
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  min-width:120px;
+  text-align:center;
+  font-weight:600;
+  font-size:13px;
+  transition: box-shadow .18s, transform .08s, background .12s;
+  backdrop-filter: blur(6px);
+  display:inline-block;
+}
+button.glassBtn:hover{ box-shadow: 0 6px 18px rgba(0,0,0,0.6); transform: translateY(-2px); }
+button.glassBtn.active{ box-shadow: 0 8px 30px var(--active-glow); border-color: rgba(0,123,255,0.6); background: linear-gradient(180deg, rgba(0,123,255,0.06), rgba(255,255,255,0.01)); }
+button.glassBtn.small{ min-width:100px; padding:6px 8px; font-size:12px;}
+@keyframes pulse {0%{box-shadow:0 0 0 rgba(0,123,255,0.28);}50%{box-shadow:0 0 18px rgba(0,123,255,0.18); transform:scale(.995);}100%{box-shadow:0 0 0 rgba(0,123,255,0); transform:scale(1);}}
+button.glassBtn.pulse{ animation: pulse .42s ease-out; }
+
+/* map & panel */
+#map{position:absolute;top:64px;left:0;right:0;bottom:0;}
+#sidePanel{position:absolute;top:82px;right:12px;width:380px;max-height:calc(100% - 104px);padding:12px;background:var(--panel);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,0.6);transform:translateX(420px);opacity:0;transition:transform .32s, opacity .28s;overflow:auto;z-index:1001;pointer-events:none;}
 #sidePanel.open{transform:translateX(0);opacity:1;pointer-events:auto}
-#dimOverlay{position:absolute;inset:56px 0 0 0;background:rgba(0,0,0,0.35);z-index:1000;opacity:0;pointer-events:none;transition:opacity .28s;}
+#dimOverlay{position:absolute;inset:64px 0 0 0;background:rgba(0,0,0,0.35);z-index:1000;opacity:0;pointer-events:none;transition:opacity .28s;}
 #dimOverlay.visible{opacity:1;pointer-events:auto}
 .control-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
 input[type="text"], select{padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:#0d0f12;color:var(--white);outline:none;width:100%}
-button.primary{padding:8px 10px;border-radius:6px;border:none;cursor:pointer;background:var(--blue);color:#012028;font-weight:600}
-.muted{color:var(--muted);font-size:13px}
+.small{font-size:12px;color:var(--muted)}
 .stats{margin-top:8px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
 .stat-line{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;color:var(--muted)}
 .legend{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,0.5);padding:8px 10px;border-radius:8px;font-size:13px;color:var(--white);border:1px solid rgba(255,255,255,0.04);z-index:900}
 .legend-item{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .legend-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
-.gear{width:36px;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;background:var(--panel);cursor:pointer;}
-.gear:hover{box-shadow:0 6px 18px rgba(0,0,0,0.5)}
+
+/* plane divIcon */
+.plane-divicon { width:28px; height:28px; display:block; transform: translate(-50%, -50%); }
+.plane-divicon svg { width:28px; height:28px; display:block; transform-origin: 14px 14px; }
+
+/* responsive */
+@media (max-width:720px){
+  #sidePanel{right:8px;left:8px;width:auto;}
+  header{padding:8px;}
+  button.glassBtn{min-width:88px;padding:6px 8px;font-size:13px}
+  .header-right{gap:6px}
+}
 </style>
 </head>
 <body>
 <div id="app">
 <header>
-<h1>Belfry Lite v0.1 Prime</h1>
-<div class="header-right">
-<div class="pill" id="refreshPill">🛰️ <span id="refreshText">Idle</span></div>
-<div class="pill muted">Last: <span id="lastText">—</span></div>
-<div class="gear" id="controlsToggle">⚙️</div>
-</div>
+  <h1>Belfry Lite v3.5</h1>
+  <div class="header-right">
+    <button id="liveBtn" class="glassBtn small">Live Mode: OFF</button>
+    <button id="testBtn" class="glassBtn small active">Test Flights: ON</button>
+    <button id="followBtn" class="glassBtn small">Follow: OFF</button>
+    <button id="themeBtn" class="glassBtn small active">Theme: Dark</button>
+    <button id="refreshBtn" class="glassBtn small">Refresh Now</button>
+    <button id="centerBtn" class="glassBtn small">Center Map</button>
+    <button id="controlsToggle" class="glassBtn small">Controls</button>
+    <div class="small" id="lastText">Last: —</div>
+  </div>
 </header>
+
 <div id="map"></div>
 <div id="dimOverlay"></div>
+
 <div id="sidePanel">
-<div class="control-row">
-<label><input type="checkbox" id="locationToggle"> Search by location</label>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <input type="text" id="globalSearch" placeholder="Search id / origin / dest" style="flex:1"/>
+    <button id="clearSearch" class="glassBtn small">Clear</button>
+  </div>
+
+  <div class="control-row">
+    <label><input type="checkbox" id="locationToggle"> Search by location</label>
+  </div>
+
+  <div id="locationControls" style="display:none;flex-direction:column;gap:8px">
+    <input list="continentList" id="continentInput" placeholder="Continent"><datalist id="continentList"></datalist>
+    <input list="countryList" id="countryInput" placeholder="Country" disabled><datalist id="countryList"></datalist>
+    <input list="cityList" id="cityInput" placeholder="City" disabled><datalist id="cityList"></datalist>
+  </div>
+
+  <div class="control-row" style="margin-top:6px;">
+    <input type="text" id="flightSearchInput" placeholder="Search flight by destination, origin, or type">
+  </div>
+
+  <div class="control-row">
+    <label>Flight Type
+      <select id="typeDropdown">
+        <option value="all">All</option>
+        <option value="commercial">Commercial</option>
+        <option value="private">Private</option>
+        <option value="military">Military</option>
+        <option value="test">Test</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="control-row">
+    <div style="width:100%">
+      <div class="small" style="margin-bottom:6px">Data Source</div>
+      <div style="display:flex;gap:8px">
+        <select id="dataSourceSelect" style="flex:1">
+          <option value="dummy">Dummy (dev)</option>
+          <option value="opensky">OpenSky (public)</option>
+          <option value="adsbexchange">ADS-B Exchange (optional key)</option>
+          <option value="aerodatabox">AeroDataBox (optional key)</option>
+        </select>
+        <select id="refreshInterval" title="Auto-refresh interval">
+          <option value="30000">30s</option>
+          <option value="60000" selected>60s</option>
+          <option value="120000">2m</option>
+          <option value="300000">5m</option>
+        </select>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="forceRefreshBtn" class="glassBtn">Force Refresh</button>
+        <button id="toggleLiveBtn" class="glassBtn">Enable Live</button>
+      </div>
+
+      <div class="small muted" style="margin-top:8px">Note: ADS-B Exchange and AeroDataBox options need API keys in the script header (see comments). If unavailable the app falls back to OpenSky or Dummy.</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-line"><div>Flights visible</div><div id="statCount">0</div></div>
+    <div class="stat-line"><div>Commercial</div><div id="statCommercial">0</div></div>
+    <div class="stat-line"><div>Private</div><div id="statPrivate">0</div></div>
+    <div class="stat-line"><div>Military</div><div id="statMilitary">0</div></div>
+    <div class="stat-line"><div>Test</div><div id="statTest">0</div></div>
+  </div>
 </div>
-<div id="locationControls" style="display:none;flex-direction:column;gap:8px">
-<input list="continentList" id="continentInput" placeholder="Continent"><datalist id="continentList"></datalist>
-<input list="countryList" id="countryInput" placeholder="Country" disabled><datalist id="countryList"></datalist>
-<input list="cityList" id="cityInput" placeholder="City" disabled><datalist id="cityList"></datalist>
-</div>
-<div class="control-row" style="margin-top:6px;">
-<input type="text" id="flightSearchInput" placeholder="Search flight by destination or type">
-</div>
-<div class="control-row">
-<label>Flight Type
-<select id="typeDropdown">
-<option value="all">All</option>
-<option value="private">Private</option>
-<option value="commercial">Commercial</option>
-<option value="military">Military</option>
-<option value="test">Test</option>
-</select>
-</label>
-<button id="toggleTestBtn" class="primary">Toggle Test Flights</button>
-</div>
-<div class="control-row">
-<label>Time filter
-<select id="timeSelect">
-<option value="all">All</option>
-<option value="15">Last 15 min</option>
-<option value="30">Last 30 min</option>
-<option value="60">Last 60 min</option>
-</select>
-</label>
-<button id="mapThemeBtn" class="primary">Toggle Map Theme</button>
-<button id="centerBtn" class="primary">Center Map</button>
-</div>
-<div class="stats">
-<div class="stat-line"><div>Flights visible</div><div id="statCount">0</div></div>
-<div class="stat-line"><div>Commercial</div><div id="statCommercial">0</div></div>
-<div class="stat-line"><div>Private</div><div id="statPrivate">0</div></div>
-<div class="stat-line"><div>Military</div><div id="statMilitary">0</div></div>
-<div class="stat-line"><div>Test</div><div id="statTest">0</div></div>
-</div>
-</div>
+
 <div class="legend" id="legend">
-<div style="font-weight:600;margin-bottom:6px">Legend</div>
-<div class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span> Commercial</div>
-<div class="legend-item"><span class="legend-dot" style="background:var(--yellow)"></span> Private</div>
-<div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span> Military</div>
-<div class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span> Test</div>
+  <div style="font-weight:600;margin-bottom:6px">Legend</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span> Commercial</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--yellow)"></span> Private</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span> Military</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span> Test</div>
 </div>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster-src.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
 
-// --- PASSWORD ---
+/* =========================
+   CONFIG — put API KEYS here if you have them
+   ADS-B Exchange and AeroDataBox entries accept API keys (optional).
+   If left empty, fetchers will attempt public endpoints and otherwise will error/fallback.
+   ========================= */
+const CONFIG = {
+  ADSBEXCHANGE_API_KEY: '', // optional
+  AERODATABOX_API_KEY: '',  // optional
+  AERODATABOX_HOST: 'https://aerodatabox.p.rapidapi.com' // example; requires rapidapi key usually
+};
+
+/* =========================
+   AUTHENTICATION
+   ========================= */
 const PASSWORD="belfryprime"; let attempts=0;
 function auth(){
-  const p=prompt("Enter password for Belfry Lite v0.1:");
+  const p=prompt("Enter password for Belfry Lite v3.5:");
   if(p===null){document.body.innerHTML="<h2 style='color:#faa;text-align:center;margin-top:50px'>Authentication cancelled</h2>";throw new Error("auth cancelled");}
   if(p!==PASSWORD){attempts++;alert("Incorrect password.");if(attempts>=3){document.body.innerHTML="<h2 style='color:red;text-align:center;margin-top:50px'>Access Denied</h2>";throw new Error("access denied");}return auth();}
-  document.getElementById('app').style.display='block';document.getElementById('lastText').textContent=new Date().toLocaleString();
+  document.getElementById('app').style.display='block'; document.getElementById('lastText').textContent = 'Last: ' + new Date().toLocaleString();
 }
 auth();
 
-// --- MAP ---
+/* =========================
+   MAP SETUP
+   ========================= */
 const darkTiles=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19});
 const lightTiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
-const map=L.map('map',{preferCanvas:true}).setView([20,0],2); darkTiles.addTo(map); let darkMode=true;
-document.getElementById('mapThemeBtn').addEventListener('click',()=>{ if(darkMode){map.removeLayer(darkTiles); lightTiles.addTo(map); darkMode=false;}else{map.removeLayer(lightTiles); darkTiles.addTo(map); darkMode=true;}});
-document.getElementById('centerBtn').addEventListener('click',()=>{map.setView([20,0],2);});
+const map=L.map('map',{preferCanvas:true}).setView([20,0],2);
+let darkMode=true; darkTiles.addTo(map);
 
-// --- PANEL ---
-const controlsToggle=document.getElementById('controlsToggle');
-const sidePanel=document.getElementById('sidePanel');
-const dimOverlay=document.getElementById('dimOverlay');
-function openPanel(){ sidePanel.classList.add('open'); dimOverlay.classList.add('visible'); setTimeout(()=>map.invalidateSize(),320);}
-function closePanel(){ sidePanel.classList.remove('open'); dimOverlay.classList.remove('visible'); setTimeout(()=>map.invalidateSize(),320);}
-controlsToggle.addEventListener('mouseenter',openPanel);
-sidePanel.addEventListener('mouseleave',closePanel);
-dimOverlay.addEventListener('click',closePanel);
+/* =========================
+   STATE & UI ELEMENTS
+   ========================= */
+let flights=[]; let flightMarkers=[]; let flightLines=[]; let flightPlanes=[]; let testFlightsVisible=true;
+let liveEnabled=false; let followingId=null; let followMarker=null; let rotateInterpolants={}; // store previous rotation
+const dataSourceSelect = document.getElementById('dataSourceSelect');
+const refreshIntervalSelect = document.getElementById('refreshInterval');
+const forceRefreshBtn = document.getElementById('forceRefreshBtn');
+const toggleLiveBtn = document.getElementById('toggleLiveBtn');
+let refreshTimerId = null;
 
-// --- DUMMY FLIGHTS ---
-let flights=[]; let testFlightsVisible=true;
+/* CLUSTER GROUP (for anchor markers/popups) */
+const clusterGroup = L.markerClusterGroup();
+map.addLayer(clusterGroup);
+
+/* =========================
+   UTILITIES
+   ========================= */
+function mpsToKts(mps){ return mps ? Math.round(mps * 1.943844) : 0; }
+function metersToFeet(m){ return m ? Math.round(m * 3.28084) : 0; }
+function degTo360(d){ return ( (d % 360) + 360 ) % 360; }
+function bearingBetween(lat1, lon1, lat2, lon2){
+  const toRad = Math.PI/180, toDeg = 180/Math.PI;
+  const φ1 = lat1 * toRad, φ2 = lat2 * toRad;
+  const Δλ = (lon2 - lon1) * toRad;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return degTo360(Math.atan2(y,x) * toDeg);
+}
+function inferTypeFromState(state){
+  const callsign = (state[1]||'').trim();
+  const velocity = state[9] || 0;
+  if(!callsign) return velocity > 250 ? 'commercial' : 'private';
+  if(/^[A-Z0-9]{3,}/.test(callsign)) return 'commercial';
+  return 'private';
+}
+
+/* =========================
+   SVG plane & divIcon (colored)
+   ========================= */
+function planeSVG(color){
+  return `
+    <div class="plane-divicon">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path fill="${color}" d="M21 16v-2l-8-4V3.5a1.5 1.5 0 0 0-3 0V10L2 14v2l8-1v3l-2 1v1l4-1 4 1v-1l-2-1v-3l8 1z"/>
+      </svg>
+    </div>`;
+}
+function divIconForType(type){
+  const color = type==='commercial'? getComputedStyle(document.documentElement).getPropertyValue('--blue').trim()
+               : type==='private'? getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim()
+               : type==='military'? getComputedStyle(document.documentElement).getPropertyValue('--red').trim()
+               : getComputedStyle(document.documentElement).getPropertyValue('--purple').trim();
+  return L.divIcon({ className:'', html:planeSVG(color), iconSize:[28,28], iconAnchor:[14,14] });
+}
+
+/* =========================
+   LIVE FETCHERS
+   - OpenSky (public)
+   - ADS-B Exchange (optional key)
+   - AeroDataBox (optional key)
+   All return normalized objects: {id,type,lat,lng,origin,dest,alt,speed,heading,timestamp}
+   ========================= */
+async function fetchFromOpenSky(){
+  const url = 'https://opensky-network.org/api/states/all';
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error('OpenSky fetch failed: ' + resp.status);
+  const data = await resp.json();
+  if(!data.states) return [];
+  const now = Date.now();
+  return data.states.map(s=>{
+    const lat = s[6], lng = s[5];
+    return {
+      id: s[0] || Math.random().toString(36).slice(2,9),
+      type: inferTypeFromState(s),
+      lat: lat || 0,
+      lng: lng || 0,
+      dest: (s[1]||'').trim() || '—',
+      origin: s[2] || '—',
+      alt: metersToFeet(s[13] || s[7]),
+      speed: mpsToKts(s[9]),
+      heading: (typeof s[10] === 'number' ? degTo360(Math.round(s[10])) : null),
+      timestamp: (s[4] ? s[4]*1000 : now)
+    };
+  }).filter(f=>f.lat && f.lng);
+}
+
+async function fetchFromADSBExchange(){
+  // NOTE: public endpoints vary and often require key; best-effort attempt.
+  // If you have an API key, set CONFIG.ADSBEXCHANGE_API_KEY above.
+  // Example public endpoint (may require proxy/CORS):
+  const url = CONFIG.ADSBEXCHANGE_API_KEY
+    ? `https://public-api.adsbexchange.com/VirtualRadar/AircraftList.json?lat=20&lng=0&fDstL=0&fDstU=200`
+    : 'https://public-api.adsbexchange.com/VirtualRadar/AircraftList.json?lat=20&lng=0&fDstL=0&fDstU=200';
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error('ADSBExchange fetch failed: ' + resp.status);
+  const data = await resp.json();
+  // data.acList items vary; normalize best-effort
+  const now = Date.now();
+  if(!data.acList) return [];
+  return data.acList.map(a=>{
+    return {
+      id: a.Icao || a.Id || Math.random().toString(36).slice(2,9),
+      type: a.Type && a.Type.toLowerCase().includes('mil') ? 'military' : (a.Squawk ? 'commercial' : 'private'),
+      lat: a.Lat || 0,
+      lng: a.Lon || 0,
+      dest: a.To || '—',
+      origin: a.From || '—',
+      alt: a.Alt ? Math.round(a.Alt*3.28084) : null,
+      speed: a.Spd ? Math.round(a.Spd*1.943844) : null,
+      heading: typeof a.Trak === 'number' ? degTo360(Math.round(a.Trak)) : null,
+      timestamp: now
+    };
+  }).filter(f=>f.lat && f.lng);
+}
+
+async function fetchFromAeroDataBox(){
+  // AeroDataBox usually requires RapidAPI key; use CONFIG.AERODATABOX_API_KEY if provided.
+  // This is a placeholder showing where to implement additional normalization.
+  throw new Error('AeroDataBox not configured (API key required).');
+}
+
+async function fetchLiveFlights(){
+  const src = dataSourceSelect.value;
+  if(src === 'dummy') return generateDummyFlights();
+  if(src === 'opensky') return await fetchFromOpenSky();
+  if(src === 'adsbexchange') return await fetchFromADSBExchange();
+  if(src === 'aerodatabox') return await fetchFromAeroDataBox();
+  return generateDummyFlights();
+}
+
+/* =========================
+   DUMMY FLIGHTS (2)
+   ========================= */
 function generateDummyFlights(){
-  const now=Date.now();
+  const now = Date.now();
   return [
-    {id:1,type:'commercial',lat:51.5,lng:-0.1,dest:'London',origin:'New York',alt:35000,speed:480,timestamp:now-600000},
-    {id:2,type:'private',lat:40.7,lng:-74,dest:'New York',origin:'Boston',alt:12000,speed:350,timestamp:now-1200000},
-    {id:3,type:'military',lat:33.7,lng:73.1,dest:'Islamabad',origin:'Karachi',alt:40000,speed:520,timestamp:now-900000},
-    {id:4,type:'test',lat:48.8,lng:2.3,dest:'Paris',origin:'London',alt:30000,speed:450,timestamp:now-300000},
-    {id:5,type:'commercial',lat:-33.9,lng:151.2,dest:'Sydney',origin:'Melbourne',alt:36000,speed:470,timestamp:now-1800000},
-    {id:6,type:'private',lat:35.7,lng:139.7,dest:'Tokyo',origin:'Osaka',alt:15000,speed:340,timestamp:now-600000},
-    {id:7,type:'military',lat:55.7,lng:37.6,dest:'Moscow',origin:'St. Petersburg',alt:38000,speed:500,timestamp:now-1500000},
-    {id:8,type:'test',lat:19.4,lng:-99.1,dest:'Mexico City',origin:'Cancun',alt:32000,speed:430,timestamp:now-400000},
-    {id:9,type:'commercial',lat:52.5,lng:13.4,dest:'Berlin',origin:'Paris',alt:37000,speed:460,timestamp:now-500000},
-    {id:10,type:'private',lat:1.3,lng:103.8,dest:'Singapore',origin:'Jakarta',alt:14000,speed:330,timestamp:now-800000}
+    { id:'D1', type:'commercial', lat:51.47, lng:-0.45, origin:'London', dest:'Paris', alt:33000, speed:460, heading:220, timestamp: now - 60000 },
+    { id:'D2', type:'test',       lat:40.64, lng:-73.78, origin:'New York', dest:'Boston', alt:12000, speed:320, heading:40, timestamp: now - 120000 }
   ];
 }
-flights=generateDummyFlights();
-let flightMarkers=[], flightLines=[], flightPlanes=[];
 
-// --- PLANE ICONS ---
-const planeIcons = {
-  commercial:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize:[20,20],iconAnchor:[10,10]}),
-  private:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684909.png',iconSize:[20,20],iconAnchor:[10,10]}),
-  military:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684910.png',iconSize:[20,20],iconAnchor:[10,10]}),
-  test:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684911.png',iconSize:[20,20],iconAnchor:[10,10]})
-};
+/* =========================
+   RENDERING, CLUSTERING, FOLLOWING, ROTATION SMOOTHING
+   ========================= */
+function clearFlights(){
+  // remove static anchor markers (cluster)
+  clusterGroup.clearLayers();
+  // remove animated planes and polylines
+  flightPlanes.forEach(p=>{ try{ map.removeLayer(p); }catch(e){} });
+  flightLines.forEach(l=>{ try{ map.removeLayer(l); }catch(e){} });
+  flightPlanes=[]; flightLines=[];
+  flightMarkers=[];
+}
 
-// --- FLIGHTS RENDER + ANIMATION ---
+function applyRotationToMarker(marker, angle){
+  if(!marker) return;
+  const el = marker.getElement ? marker.getElement() : null;
+  if(!el) return;
+  // smooth interpolation: keep previous angle in rotateInterpolants keyed by marker._leaflet_id
+  const key = marker._leaflet_id;
+  const prev = rotateInterpolants[key] || angle;
+  // linear interpolation with clamping (shortest path)
+  let a0 = prev, a1 = angle;
+  let delta = ((a1 - a0 + 540) % 360) - 180;
+  let next = a0 + delta * 0.2; // smoothing factor 0.2
+  rotateInterpolants[key] = degTo360(next);
+  el.style.transform = `translate(-50%, -50%) rotate(${degTo360(next)}deg)`;
+  el.style.transformOrigin = '14px 14px';
+}
+
 function addFlightAnimations(flightsToRender){
-  flightLines.forEach(l=>map.removeLayer(l)); flightPlanes.forEach(p=>map.removeLayer(p));
-  flightLines=[]; flightPlanes=[];
+  // clear previous animated layers
+  flightPlanes.forEach(p=>{ try{ map.removeLayer(p); }catch(e){} });
+  flightLines.forEach(l=>{ try{ map.removeLayer(l); }catch(e){} });
+  flightPlanes=[]; flightLines=[];
   flightsToRender.forEach(f=>{
     if(f.type==='test' && !testFlightsVisible) return;
-    let color=f.type==='commercial'? '--blue': f.type==='private'? '--yellow': f.type==='military'? '--red':'--purple';
-    let col=getComputedStyle(document.documentElement).getPropertyValue(color);
-    let latlngs=[[f.lat,f.lng],[f.lat+Math.random()*2-1,f.lng+Math.random()*2-1]];
-    let poly=L.polyline(latlngs,{color:col,weight:2,opacity:0.6}).addTo(map); flightLines.push(poly);
-    let plane=L.marker(latlngs[0],{icon:planeIcons[f.type]}).addTo(map); flightPlanes.push(plane);
-    let t=0; function animate(){ t+=0.005; if(t>1) t=0; let lat=latlngs[0][0]+(latlngs[1][0]-latlngs[0][0])*t; let lng=latlngs[0][1]+(latlngs[1][1]-latlngs[0][1])*t; plane.setLatLng([lat,lng]); requestAnimationFrame(animate);}
+    // color mapping
+    const color = f.type==='commercial'? getComputedStyle(document.documentElement).getPropertyValue('--blue').trim()
+                : f.type==='private'? getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim()
+                : f.type==='military'? getComputedStyle(document.documentElement).getPropertyValue('--red').trim()
+                : getComputedStyle(document.documentElement).getPropertyValue('--purple').trim();
+
+    // compute small forward point
+    let lat1 = f.lat, lon1 = f.lng;
+    let lat2 = lat1 + (Math.random()*0.6 - 0.3);
+    let lon2 = lon1 + (Math.random()*0.6 - 0.3);
+    if(typeof f.heading === 'number'){
+      const θ = f.heading * Math.PI/180;
+      lat2 = lat1 + Math.cos(θ) * 0.5 * 0.01;
+      lon2 = lon1 + Math.sin(θ) * 0.5 * 0.01;
+    }
+
+    const latlngs = [[lat1, lon1], [lat2, lon2]];
+    const poly = L.polyline(latlngs, { color: color, weight: 2, opacity: 0.65 }).addTo(map);
+    flightLines.push(poly);
+
+    const icon = divIconForType(f.type);
+    const planeMarker = L.marker(latlngs[0], { icon: icon }).addTo(map);
+    flightPlanes.push(planeMarker);
+
+    // initial rotation
+    setTimeout(()=>{ applyRotationToMarker(planeMarker, f.heading || bearingBetween(lat1,lon1,lat2,lon2)); }, 0);
+
+    // animate loop
+    let t = Math.random();
+    const speedFactor = 0.0025 + Math.random() * 0.004;
+    function animate(){
+      t += speedFactor;
+      if(t > 1) t = 0;
+      const lat = latlngs[0][0] + (latlngs[1][0]-latlngs[0][0]) * t;
+      const lng = latlngs[0][1] + (latlngs[1][1]-latlngs[0][1]) * t;
+      planeMarker.setLatLng([lat,lng]);
+
+      // if following this id, center map
+      if(followingId && followingId === f.id){
+        map.setView([lat,lng]);
+      }
+
+      const currentBearing = (typeof f.heading === 'number') ? f.heading : bearingBetween(latlngs[0][0],latlngs[0][1],latlngs[1][0],latlngs[1][1]);
+      applyRotationToMarker(planeMarker, currentBearing);
+      requestAnimationFrame(animate);
+    }
     animate();
   });
 }
 
-function renderFlights(){
-  flightMarkers.forEach(m=>map.removeLayer(m)); flightMarkers=[];
-  const filterType=document.getElementById('typeDropdown').value;
-  const searchQuery=document.getElementById('flightSearchInput').value.toLowerCase();
-  const timeFilter=document.getElementById('timeSelect').value;
-  const now=Date.now();
-  let flightsToRender=[];
-  let count={commercial:0,private:0,military:0,test:0};
+function renderFlights(filteredList){
+  // cluster static anchors (popups) so map stays performant
+  clusterGroup.clearLayers();
+  const list = filteredList || flights;
+  const now = Date.now();
+  let visible = [], counts = {commercial:0,private:0,military:0,test:0};
 
-  flights.forEach(f=>{
+  list.forEach(f=>{
     if(f.type==='test' && !testFlightsVisible) return;
-    if(filterType!=='all' && f.type!==filterType) return;
-    if(searchQuery && !(f.dest.toLowerCase().includes(searchQuery) || f.type.toLowerCase().includes(searchQuery))) return;
-    if(timeFilter!=='all' && (now-f.timestamp)/60000>parseInt(timeFilter)) return;
-
-    let m=L.marker([f.lat,f.lng],{icon:planeIcons[f.type]}).addTo(map);
-    m.bindPopup(`<b>${f.type.toUpperCase()} flight</b><br>From: ${f.origin}<br>To: ${f.dest}<br>Altitude: ${f.alt} ft<br>Speed: ${f.speed} kt`);
-    flightMarkers.push(m); flightsToRender.push(f);
-    count[f.type]++;
+    // filters from controls
+    const typeFilter = document.getElementById('typeDropdown').value;
+    if(typeFilter !== 'all' && f.type !== typeFilter) return;
+    // time filter if present
+    const timeSelect = document.getElementById('timeSelect');
+    if(timeSelect && timeSelect.value !== 'all'){
+      const minutes = parseInt(timeSelect.value);
+      if((now - f.timestamp)/60000 > minutes) return;
+    }
+    // add invisible marker to cluster for popup/interaction (these are clustered)
+    const anchor = L.marker([f.lat,f.lng], { icon: L.divIcon({className:'', html:'', iconSize:[6,6], iconAnchor:[3,3]}) });
+    anchor.bindPopup(`<b>${(f.type||'').toUpperCase()} flight</b><br>ID: ${f.id}<br>From: ${f.origin}<br>To: ${f.dest}<br>Altitude: ${f.alt || '—'} ft<br>Speed: ${f.speed || '—'} kt<br><br><button id="follow_${f.id}" style="padding:6px;border-radius:6px;border:none;background:#0b84ff;color:#001">Follow</button>`);
+    anchor.on('popupopen', (ev)=>{
+      // attach follow button listener
+      setTimeout(()=>{
+        const btn = document.getElementById(`follow_${f.id}`);
+        if(btn) btn.addEventListener('click', ()=>{ followingId = f.id; setButtonState(document.getElementById('followBtn'), true, 'Follow: ON', 'Follow: OFF'); ev.popup._close(); });
+      },50);
+    });
+    clusterGroup.addLayer(anchor);
+    visible.push(f);
+    counts[f.type] = (counts[f.type]||0) + 1;
   });
-  addFlightAnimations(flightsToRender);
 
-  document.getElementById('statCount').textContent=flightMarkers.length;
-  document.getElementById('statCommercial').textContent=count['commercial']||0;
-  document.getElementById('statPrivate').textContent=count['private']||0;
-  document.getElementById('statMilitary').textContent=count['military']||0;
-  document.getElementById('statTest').textContent=count['test']||0;
-  document.getElementById('refreshText').textContent='Refreshed';
-  document.getElementById('lastText').textContent=new Date().toLocaleString();
+  // trigger animated plane icons for visible flights
+  addFlightAnimations(visible);
+
+  // update stats
+  document.getElementById('statCount').textContent = visible.length;
+  document.getElementById('statCommercial').textContent = counts['commercial'] || 0;
+  document.getElementById('statPrivate').textContent = counts['private'] || 0;
+  document.getElementById('statMilitary').textContent = counts['military'] || 0;
+  document.getElementById('statTest').textContent = counts['test'] || 0;
+  document.getElementById('lastText').textContent = 'Last: ' + new Date().toLocaleString();
 }
 
-// --- CONTROLS ---
-document.getElementById('toggleTestBtn').addEventListener('click',()=>{ testFlightsVisible=!testFlightsVisible; renderFlights(); });
-document.getElementById('typeDropdown').addEventListener('change',renderFlights);
-document.getElementById('flightSearchInput').addEventListener('input',renderFlights);
-document.getElementById('timeSelect').addEventListener('change',renderFlights);
+/* =========================
+   SEARCH / FILTER UI
+   ========================= */
+const globalSearch = document.getElementById('globalSearch');
+const clearSearch = document.getElementById('clearSearch');
 
-// --- LOCATION CONTROLS ---
+function doSearch(){
+  const q = (globalSearch.value||'').trim().toLowerCase();
+  if(!q){ renderFlights(); return; }
+  const filtered = flights.filter(f=>{
+    return (f.id||'').toString().toLowerCase().includes(q) ||
+           (f.origin||'').toString().toLowerCase().includes(q) ||
+           (f.dest||'').toString().toLowerCase().includes(q);
+  });
+  renderFlights(filtered);
+  // if single match, follow it
+  if(filtered.length === 1){ followingId = filtered[0].id; setButtonState(document.getElementById('followBtn'), true, 'Follow: ON', 'Follow: OFF'); }
+}
+globalSearch.addEventListener('input', doSearch);
+clearSearch.addEventListener('click', ()=>{ globalSearch.value=''; followingId=null; setButtonState(document.getElementById('followBtn'), false, 'Follow: ON', 'Follow: OFF'); renderFlights(); });
+
+/* =========================
+   CONTROLS & UI STATE
+   ========================= */
+const liveBtn = document.getElementById('liveBtn');
+const testBtn = document.getElementById('testBtn');
+const followBtn = document.getElementById('followBtn');
+const themeBtn = document.getElementById('themeBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+const centerBtn = document.getElementById('centerBtn');
+const controlsToggle = document.getElementById('controlsToggle');
+const forceRefreshBtnEl = document.getElementById('forceRefreshBtn');
+const toggleLiveBtnEl = document.getElementById('toggleLiveBtn');
+
+function setButtonState(button, on, labelTrue, labelFalse){
+  if(on){ button.classList.add('active'); button.textContent = labelTrue; }
+  else { button.classList.remove('active'); button.textContent = labelFalse; }
+}
+
+// initialize states
+setButtonState(testBtn, testFlightsVisible, 'Test Flights: ON', 'Test Flights: OFF');
+setButtonState(themeBtn, darkMode, 'Theme: Dark', 'Theme: Light');
+setButtonState(liveBtn, liveEnabled, 'Live Mode: ON', 'Live Mode: OFF');
+setButtonState(followBtn, false, 'Follow: ON', 'Follow: OFF');
+
+testBtn.addEventListener('click', ()=>{
+  testFlightsVisible = !testFlightsVisible;
+  setButtonState(testBtn, testFlightsVisible, 'Test Flights: ON', 'Test Flights: OFF');
+  renderFlights();
+  pulse(testBtn);
+});
+
+themeBtn.addEventListener('click', ()=>{
+  darkMode = !darkMode;
+  if(darkMode){ map.removeLayer(lightTiles); darkTiles.addTo(map); } else { map.removeLayer(darkTiles); lightTiles.addTo(map); }
+  setButtonState(themeBtn, darkMode, 'Theme: Dark', 'Theme: Light');
+  pulse(themeBtn);
+});
+
+liveBtn.addEventListener('click', ()=>{
+  liveEnabled = !liveEnabled;
+  setButtonState(liveBtn, liveEnabled, 'Live Mode: ON', 'Live Mode: OFF');
+  if(liveEnabled && dataSourceSelect.value === 'dummy') dataSourceSelect.value = 'opensky';
+  refreshFlights();
+  pulse(liveBtn);
+});
+
+followBtn.addEventListener('click', ()=>{
+  if(followingId){ followingId = null; setButtonState(followBtn, false, 'Follow: ON', 'Follow: OFF'); }
+  else { /* if no following, and there is a highlighted flight from search, keep follow toggled on. */ }
+  pulse(followBtn);
+});
+
+refreshBtn.addEventListener('click', ()=>{ refreshFlights(); pulse(refreshBtn); });
+centerBtn.addEventListener('click', ()=>{ map.setView([20,0],2); pulse(centerBtn); });
+
+function pulse(btn){ btn.classList.add('pulse'); setTimeout(()=>btn.classList.remove('pulse'),420); }
+
+/* panel open/close */
+function openPanel(){ document.getElementById('sidePanel').classList.add('open'); document.getElementById('dimOverlay').classList.add('visible'); setTimeout(()=>map.invalidateSize(),320); }
+function closePanel(){ document.getElementById('sidePanel').classList.remove('open'); document.getElementById('dimOverlay').classList.remove('visible'); setTimeout(()=>map.invalidateSize(),320); }
+controlsToggle.addEventListener('click', ()=>{ const p=document.getElementById('sidePanel'); p.classList.contains('open') ? closePanel() : openPanel(); });
+document.getElementById('dimOverlay').addEventListener('click', closePanel);
+
+/* side panel controls */
+forceRefreshBtnEl.addEventListener('click', ()=>{ refreshFlights(); pulse(forceRefreshBtnEl); });
+toggleLiveBtnEl.addEventListener('click', ()=>{ liveEnabled = !liveEnabled; setButtonState(liveBtn, liveEnabled, 'Live Mode: ON', 'Live Mode: OFF'); setButtonState(toggleLiveBtnEl, liveEnabled, 'Disable Live', 'Enable Live'); refreshFlights(); pulse(toggleLiveBtnEl); });
+dataSourceSelect.addEventListener('change', ()=>{ if(dataSourceSelect.value === 'dummy'){ liveEnabled=false; setButtonState(liveBtn, false, 'Live Mode: ON', 'Live Mode: OFF'); setButtonState(toggleLiveBtnEl, false, 'Disable Live', 'Enable Live'); } else { liveEnabled=true; setButtonState(liveBtn, true, 'Live Mode: ON', 'Live Mode: OFF'); setButtonState(toggleLiveBtnEl, true, 'Disable Live', 'Enable Live'); } refreshFlights(); });
+
+/* location cascading */
 const locationToggle=document.getElementById('locationToggle');
 const locationControls=document.getElementById('locationControls');
 locationToggle.addEventListener('change',()=>{ locationControls.style.display=locationToggle.checked?'flex':'none'; });
 const continents=['Africa','Europe','Asia','North America','South America','Oceania'];
 const countries={'Europe':['UK','France','Germany'],'Asia':['Pakistan','Japan','China'],'North America':['USA','Canada','Mexico'],'Oceania':['Australia','New Zealand'],'Africa':['Egypt','Nigeria','South Africa'],'South America':['Brazil','Argentina','Chile']};
 const cities={'UK':['London','Manchester'],'France':['Paris','Lyon'],'Germany':['Berlin','Munich'],'Pakistan':['Islamabad','Karachi'],'Japan':['Tokyo','Osaka'],'China':['Beijing','Shanghai'],'USA':['New York','Los Angeles'],'Canada':['Toronto','Vancouver'],'Mexico':['Mexico City','Cancun'],'Australia':['Sydney','Melbourne'],'New Zealand':['Auckland','Wellington'],'Egypt':['Cairo'],'Nigeria':['Lagos'],'South Africa':['Cape Town'],'Brazil':['Sao Paulo'],'Argentina':['Buenos Aires'],'Chile':['Santiago']};
-
 const continentInput=document.getElementById('continentInput');
 const countryInput=document.getElementById('countryInput');
 const cityInput=document.getElementById('cityInput');
-continentInput.addEventListener('input',()=>{
-  countryInput.disabled=false; countryInput.value=''; cityInput.value=''; cityInput.disabled=true;
-  let list=countries[continentInput.value]||[];
-  const dl=document.getElementById('countryList'); dl.innerHTML=''; list.forEach(c=>{let o=document.createElement('option'); o.value=c; dl.appendChild(o);});
-});
-countryInput.addEventListener('input',()=>{
-  cityInput.disabled=false; cityInput.value='';
-  let list=cities[countryInput.value]||[];
-  const dl=document.getElementById('cityList'); dl.innerHTML=''; list.forEach(c=>{let o=document.createElement('option'); o.value=c; dl.appendChild(o);});
-});
+if(continentInput){ continentInput.addEventListener('input',()=>{ countryInput.disabled=false; countryInput.value=''; cityInput.value=''; cityInput.disabled=true; let list=countries[continentInput.value]||[]; const dl=document.getElementById('countryList'); dl.innerHTML=''; list.forEach(c=>{let o=document.createElement('option'); o.value=c; dl.appendChild(o);}); }); }
+if(countryInput){ countryInput.addEventListener('input',()=>{ cityInput.disabled=false; cityInput.value=''; let list=cities[countryInput.value]||[]; const dl=document.getElementById('cityList'); dl.innerHTML=''; list.forEach(c=>{let o=document.createElement('option'); o.value=c; dl.appendChild(o);}); }); }
 
-// --- INITIAL RENDER ---
-renderFlights();
+/* =========================
+   REFRESH & POLLING
+   ========================= */
+async function refreshFlights(){
+  try{
+    if(liveEnabled && dataSourceSelect.value !== 'dummy'){
+      const fetched = await fetchLiveFlights();
+      if(Array.isArray(fetched) && fetched.length>0) flights = fetched;
+      else flights = generateDummyFlights();
+    }else{
+      flights = generateDummyFlights();
+    }
+  }catch(e){
+    console.warn('Fetch failed, using dummy', e);
+    flights = generateDummyFlights();
+  }
+  // after updating flights, re-render
+  renderFlights();
+  // flash last text
+  const lt = document.getElementById('lastText');
+  lt.style.transition = 'background .18s';
+  lt.style.background = 'rgba(0,123,255,0.12)';
+  setTimeout(()=>{ lt.style.background = 'transparent'; }, 420);
+}
 
-});
+function startAutoRefresh(){
+  if(refreshTimerId) clearInterval(refreshTimerId);
+  const interval = parseInt(refreshIntervalSelect.value) || 60000;
+  refreshTimerId = setInterval(()=>{ refreshFlights(); }, interval);
+}
+refreshIntervalSelect.addEventListener('change', ()=> startAutoRefresh());
+
+/* INITIAL UI SETUP */
+setButtonState(toggleLiveBtnEl, liveEnabled, 'Disable Live', 'Enable Live');
+startAutoRefresh();
+refreshFlights();
+
+}); // DOMContentLoaded
 </script>
 </body>
 </html>
