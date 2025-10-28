@@ -42,6 +42,9 @@ Built with **FastAPI**, **Leaflet.js**, and **Vanilla JavaScript**, it provides 
 | **Data Sources** | OpenSky Network, ADS-B Exchange, AeroDataBox |
 | **Environment** | Python 3.10+, Uvicorn, REST API integration |
 
+## Next Update: Add Air Ops Layer and Air Traffic Map with Toggles
+
+## Pending Fixes: Remove Dummy Flight Data, Fix Top Panel, improve UX
 ---
 
 
